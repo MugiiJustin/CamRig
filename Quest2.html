@@ -1,0 +1,52 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{margin:0;background:#000}</style>
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { VRButton } from 'https://unpkg.com/three@0.160.0/examples/jsm/webxr/VRButton.js';
+
+const renderer = new THREE.WebGLRenderer();
+renderer.setSize(innerWidth, innerHeight);
+renderer.xr.enabled = true;
+document.body.append(renderer.domElement, VRButton.createButton(renderer));
+
+const scene = new THREE.Scene();
+const cam = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 10);
+scene.add(cam);
+
+const canvas = document.createElement('canvas');
+canvas.width = 640;
+canvas.height = 480;
+const ctx = canvas.getContext('2d');
+const tex = new THREE.CanvasTexture(canvas);
+tex.colorSpace = THREE.SRGBColorSpace;
+
+const plane = new THREE.Mesh(
+  new THREE.PlaneGeometry(2.4, 1.8),
+  new THREE.MeshBasicMaterial({ map: tex })
+);
+plane.position.z = -2;
+cam.add(plane);
+
+const img = new Image();
+img.onload = () => {
+  ctx.drawImage(img, 0, 0, 640, 480);
+  tex.needsUpdate = true;
+  img.src = '/frame.jpg?' + performance.now();
+};
+img.src = '/frame.jpg';
+
+let busy = false;
+renderer.setAnimationLoop(() => {
+  const yaw = new THREE.Euler()
+    .setFromQuaternion(renderer.xr.getCamera().quaternion, 'YXZ').y * 180 / Math.PI;
+  if (!busy) {
+    busy = true;
+    fetch('/yaw/' + yaw).finally(() => (busy = false));
+  }
+  renderer.render(scene, cam);
+});
+</script>
