@@ -1,0 +1,60 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  #eyes { display: none; height: 100%; }
+  canvas { width: 50%; height: 100%; object-fit: contain; }
+  button { position: fixed; inset: 0; width: 100%; font-size: 2rem; }
+</style>
+
+<button id="start">Tap to start</button>
+<div id="eyes">
+  <canvas id="l" width="640" height="480"></canvas>
+  <canvas id="r" width="640" height="480"></canvas>
+</div>
+
+<script>
+const rad = Math.PI / 180;
+const ctxL = l.getContext('2d');
+const ctxR = r.getContext('2d');
+const wrap = d => ((d + 540) % 360) - 180;
+const tryIt = f => Promise.resolve().then(f).catch(() => {});
+
+const img = new Image();
+img.onload = () => {
+  ctxL.drawImage(img, 0, 0, 640, 480);
+  ctxR.drawImage(img, 0, 0, 640, 480);
+  img.src = '/frame.jpg?' + performance.now();
+};
+
+let zero = null;
+let busy = false;
+
+function onOrient(e) {
+  const a = e.alpha * rad, b = e.beta * rad, g = e.gamma * rad;
+  const east = -(Math.cos(a) * Math.sin(g) + Math.sin(a) * Math.sin(b) * Math.cos(g));
+  const north = -(Math.sin(a) * Math.sin(g) - Math.cos(a) * Math.sin(b) * Math.cos(g));
+  const heading = Math.atan2(east, north) / rad;
+  if (zero === null) zero = heading;
+  const yaw = wrap(zero - heading);
+  if (!busy) {
+    busy = true;
+    fetch('/yaw/' + yaw).finally(() => (busy = false));
+  }
+}
+
+start.onclick = async () => {
+  if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+    if (await DeviceOrientationEvent.requestPermission() !== 'granted') return;
+  }
+  start.style.display = 'none';
+  eyes.style.display = 'flex';
+  await tryIt(() => document.documentElement.requestFullscreen());
+  await tryIt(() => screen.orientation.lock('landscape'));
+  await tryIt(() => navigator.wakeLock.request('screen'));
+  window.addEventListener('deviceorientation', onOrient);
+  img.src = '/frame.jpg';
+};
+
+eyes.onclick = () => (zero = null);
+</script>
